@@ -21,7 +21,7 @@ import {
   Settings,
   Trophy,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isTypingTarget } from "@/lib/utils";
 import { Logo, LogoMark } from "@/components/logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -76,15 +76,7 @@ export function AppShell({
     let timer: ReturnType<typeof setTimeout>;
 
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable ||
-        e.metaKey ||
-        e.ctrlKey ||
-        e.altKey
-      ) {
+      if (isTypingTarget(e) || e.metaKey || e.ctrlKey || e.altKey) {
         return;
       }
       if (e.key === "?") {

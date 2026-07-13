@@ -19,6 +19,7 @@ import { useTheme } from "next-themes";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useUiStore } from "@/stores/ui-store";
 import { useDebounce } from "@/hooks/use-debounce";
+import { isTypingTarget } from "@/lib/utils";
 
 interface SearchResults {
   questions: { slug: string; title: string; difficulty: string }[];
@@ -35,14 +36,10 @@ export function CommandPalette() {
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !isTyping(e))) {
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !isTypingTarget(e))) {
         e.preventDefault();
         setCommandOpen(true);
       }
-    }
-    function isTyping(e: KeyboardEvent) {
-      const el = e.target as HTMLElement;
-      return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

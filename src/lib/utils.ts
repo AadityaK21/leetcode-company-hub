@@ -6,6 +6,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * True when a keyboard event originates from any text-entry surface —
+ * inputs, textareas, contenteditables, and the Monaco code editor.
+ * Global shortcuts must never fire while the user is typing.
+ */
+export function isTypingTarget(e: KeyboardEvent): boolean {
+  const el = e.target as HTMLElement | null;
+  if (!el) return false;
+  return (
+    el.tagName === "INPUT" ||
+    el.tagName === "TEXTAREA" ||
+    el.tagName === "SELECT" ||
+    el.isContentEditable ||
+    !!el.closest?.(".monaco-editor, [role='textbox'], [contenteditable]")
+  );
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
