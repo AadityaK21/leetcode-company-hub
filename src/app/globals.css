@@ -1,0 +1,257 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Token system — "Meadow Cream"
+  Light: warm cream canvas, white cards, deep forest-green primaries,
+  fresh green signal accent (Donezo-inspired).
+  Dark: green-tinted graphite canvas, soft green primaries, same signal.
+  Numerals and data are always set in the mono face (tabular).
+*/
+@layer base {
+  :root {
+    --background: 43 26% 95%;
+    --foreground: 155 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 155 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 155 25% 10%;
+    --primary: 152 40% 20%;
+    --primary-foreground: 43 30% 96%;
+    --secondary: 46 22% 91%;
+    --secondary-foreground: 155 25% 12%;
+    --muted: 46 20% 91%;
+    --muted-foreground: 155 8% 40%;
+    --accent: 145 28% 89%;
+    --accent-foreground: 152 40% 16%;
+    --lime: 142 60% 42%;
+    --lime-foreground: 152 40% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 44 15% 85%;
+    --input: 44 15% 85%;
+    --ring: 155 10% 45%;
+    --radius: 1.25rem;
+  }
+
+  .dark {
+    --background: 150 6% 3.5%;
+    --foreground: 43 18% 94%;
+    --card: 150 5% 6.5%;
+    --card-foreground: 43 18% 94%;
+    --popover: 150 5% 6.5%;
+    --popover-foreground: 43 18% 94%;
+    --primary: 142 38% 65%;
+    --primary-foreground: 158 30% 6%;
+    --secondary: 150 4% 11%;
+    --secondary-foreground: 43 18% 94%;
+    --muted: 150 4% 11%;
+    --muted-foreground: 150 5% 60%;
+    --accent: 150 5% 13%;
+    --accent-foreground: 142 30% 85%;
+    --lime: 142 58% 52%;
+    --lime-foreground: 158 30% 6%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 5% 13%;
+    --input: 150 5% 13%;
+    --ring: 155 8% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv11";
+  }
+
+  ::selection {
+    background: hsl(var(--lime) / 0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Solid surfaces (was frosted glass — backdrop-blur caused scroll jank) */
+  .glass {
+    @apply border border-border/70 bg-card;
+  }
+
+  .glass-strong {
+    @apply border border-border/70 bg-card shadow-[0_8px_40px_-12px_rgb(0_0_0/0.12)] dark:shadow-[0_8px_40px_-12px_rgb(0_0_0/0.5)];
+  }
+
+  /* Lightweight CSS entrance for grid cards (replaces framer-motion) */
+  .card-enter {
+    animation: card-enter 0.3s ease-out both;
+  }
+  @keyframes card-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Hero entrance — slower, softer easing for editorial type */
+  .hero-enter {
+    animation: card-enter 0.6s cubic-bezier(0.21, 0.65, 0.36, 1) both;
+  }
+
+  /* Blinking terminal caret */
+  .caret-blink {
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+  @keyframes caret-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  /* Infinite logo marquee (content duplicated 2x, shift half) */
+  .animate-marquee {
+    animation: marquee 32s linear infinite;
+  }
+  @keyframes marquee {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  /* Monospace data figures — the product's signature texture */
+  .figure {
+    @apply font-mono tabular-nums tracking-tight;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+}
+
+/* ——— polish ——— */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove the default disclosure triangle (we render our own chevrons) */
+details summary::-webkit-details-marker {
+  display: none;
+}
+details summary {
+  list-style: none;
+}
+
+/* Balanced multi-line headings */
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+/* Subtle neutral focus ring, keyboard-only */
+:focus-visible {
+  outline: 1.5px solid hsl(var(--foreground) / 0.35);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Text fields indicate focus with their own ring + caret — no boxy outline */
+input:focus-visible,
+textarea:focus-visible,
+[contenteditable]:focus-visible {
+  outline: none;
+}
+
+/* Smooth open animation for details panels */
+details[open] > *:not(summary) {
+  animation: details-open 0.25s ease-out;
+}
+@keyframes details-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  details[open] > *:not(summary) {
+    animation: none;
+  }
+}
+
+/* Native form controls, scrollbars, etc. follow the active theme */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+/* Accent overrides (Settings → Appearance) */
+[data-accent="blue"] {
+  --lime: 217 91% 55%;
+}
+.dark[data-accent="blue"] {
+  --lime: 217 91% 65%;
+}
+[data-accent="violet"] {
+  --lime: 262 83% 58%;
+}
+.dark[data-accent="violet"] {
+  --lime: 262 83% 68%;
+}
+[data-accent="rose"] {
+  --lime: 347 77% 50%;
+}
+.dark[data-accent="rose"] {
+  --lime: 347 77% 62%;
+}
+
+/* Font size preference (Settings → Appearance) */
+[data-fontsize="sm"] {
+  font-size: 15px;
+}
+[data-fontsize="lg"] {
+  font-size: 17.5px;
+}
+
+/* Hard motion-off when the user enables Reduced motion in Settings */
+.app-reduce-motion *,
+.app-reduce-motion *::before,
+.app-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

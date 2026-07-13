@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionStatus {
+  TODO
+  ATTEMPTED
+  SOLVED
+  MASTERED
+}
+
+enum RevisionStatus {
+  NEEDS_REVISION
+  REVISED
+  MASTERED
+}
+
+// ---------- Auth ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(USER)
+  xp            Int       @default(0)
+  failedLogins  Int       @default(0)
+  lockedUntil   DateTime?
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?              // AES-256-GCM encrypted at rest
+  recoveryCodes    String[] @default([]) // SHA-256 hashes, single-use
+  lastLoginAt   DateTime?
+  leetcodeUsername String?
+  leetcodeSyncedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  settings     UserSettings?
+  progress     Progress[]
+  bookmarks    Bookmark[]
+  notes        Note[]
+  revisions    Revision[]
+  activities   Activity[]
+  achievements UserAchievement[]
+  sheets       StudySheet[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @id
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model UserSettings {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  theme              String  @default("system")
+  accent             String  @default("lime")
+  fontSize           String  @default("md")
+  reducedMotion      Boolean @default(false)
+  emailNotifications Boolean @default(true)
+  dailyGoal          Int     @default(3)
+  publicProfile      Boolean @default(true) // show on the leaderboard
+  onboarded          Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Content ----------
+
+model Company {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  name           String
+  description    String?
+  website        String?
+  logoUrl        String?
+  totalQuestions Int       @default(0)
+  easyCount      Int       @default(0)
+  mediumCount    Int       @default(0)
+  hardCount      Int       @default(0)
+  topFrequency   Float     @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  questions CompanyQuestion[]
+  bookmarks Bookmark[]
+
+  @@index([totalQuestions])
+}
+
+model Topic {
+  id        String          @id @default(cuid())
+  slug      String          @unique
+  name      String
+  questions QuestionTopic[]
+}
+
+model Question {
+  id              String     @id @default(cuid())
+  slug            String     @unique
+  title           String
+  difficulty      Difficulty
+  acceptance      Float? // percentage 0–100
+  leetcodeUrl     String
+  isPremium       Boolean    @default(false)
+  pattern         String?
+  timeComplexity  String?
+  spaceComplexity String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  topics     QuestionTopic[]
+  companies  CompanyQuestion[]
+  progress   Progress[]
+  bookmarks  Bookmark[]
+  notes      Note[]
+  revisions  Revision[]
+  sheetItems StudySheetQuestion[]
+
+  @@index([difficulty])
+  @@index([title])
+}
+
+model QuestionTopic {
+  questionId String
+  topicId    String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, topicId])
+}
+
+model CompanyQuestion {
+  id            String  @id @default(cuid())
+  companyId     String
+  questionId    String
+  frequency     Float   @default(0) // 0–100
+  inLast30Days  Boolean @default(false)
+  inLast3Months Boolean @default(false)
+  inLast6Months Boolean @default(false)
+  inLastYear    Boolean @default(false)
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, questionId])
+  @@index([questionId])
+  @@index([companyId, frequency])
+}
+
+// ---------- Study sheets ----------
+
+model StudySheet {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  isOfficial  Boolean  @default(true)
+  authorId    String?
+  createdAt   DateTime @default(now())
+
+  author    User?                @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  questions StudySheetQuestion[]
+  bookmarks Bookmark[]
+}
+
+model StudySheetQuestion {
+  id         String  @id @default(cuid())
+  sheetId    String
+  questionId String
+  section    String?
+  order      Int     @default(0)
+
+  sheet    StudySheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  question Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, questionId])
+  @@index([sheetId, order])
+}
+
+// ---------- Per-user data ----------
+
+model Progress {
+  id         String         @id @default(cuid())
+  userId     String
+  questionId String
+  status     QuestionStatus @default(TODO)
+  verified   Boolean        @default(false) // solved status confirmed via LeetCode sync
+  solvedAt   DateTime?
+  updatedAt  DateTime       @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, status])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String?
+  companyId  String?
+  sheetId    String?
+  folder     String?
+  createdAt  DateTime @default(now())
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question?   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  company  Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sheet    StudySheet? @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  content    String   @db.Text
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  versions NoteVersion[]
+
+  @@unique([userId, questionId])
+}
+
+model NoteVersion {
+  id        String   @id @default(cuid())
+  noteId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, createdAt])
+}
+
+model Revision {
+  id             String         @id @default(cuid())
+  userId         String
+  questionId     String
+  status         RevisionStatus @default(NEEDS_REVISION)
+  dueAt          DateTime
+  intervalDays   Int            @default(1)
+  lastReviewedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, dueAt])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // solved | attempted | note | revision | bookmark | achievement
+  meta      Json?
+  xp        Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ---------- Gamification ----------
+
+model Achievement {
+  id          String @id @default(cuid())
+  slug        String @unique
+  title       String
+  description String
+  icon        String @default("trophy")
+  tier        String @default("bronze") // bronze | silver | gold — doubles as the badge tier
+  xpReward    Int    @default(0)
+
+  users UserAchievement[]
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
