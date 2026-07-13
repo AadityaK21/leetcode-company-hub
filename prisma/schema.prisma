@@ -51,6 +51,8 @@ model User {
   lastLoginAt   DateTime?
   leetcodeUsername String?
   leetcodeSyncedAt DateTime?
+  // Pending ownership check: "username|code" until verified via profile summary
+  leetcodeVerifyCode String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

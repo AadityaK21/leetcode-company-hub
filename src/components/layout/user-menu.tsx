@@ -17,11 +17,11 @@ import {
 export function UserMenu() {
   const { data: session, status } = useSession();
 
-  if (status === "loading") return <div className="size-9 animate-pulse rounded-full bg-secondary" />;
-
+  // While the session loads, render a working Sign in link instead of a dead
+  // skeleton — otherwise the user's first click lands on nothing.
   if (!session?.user) {
     return (
-      <Button asChild size="sm">
+      <Button asChild size="sm" className={status === "loading" ? "opacity-70" : undefined}>
         <Link href="/login">Sign in</Link>
       </Button>
     );

@@ -33,6 +33,9 @@ class TwoFactorRequired extends CredentialsSignin {
 class TwoFactorInvalid extends CredentialsSignin {
   code = "2fa_invalid";
 }
+class EmailUnverified extends CredentialsSignin {
+  code = "email_unverified";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -80,6 +83,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           return null;
         }
+
+        // ——— Email must be verified before password sign-in ———
+        if (!user.emailVerified) throw new EmailUnverified();
 
         // ——— Second factor ———
         if (user.twoFactorEnabled && user.twoFactorSecret) {

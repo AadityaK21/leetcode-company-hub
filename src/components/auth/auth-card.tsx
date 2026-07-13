@@ -53,6 +53,22 @@ export function AuthCard() {
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
   const passwordValue = registerForm.watch("password") ?? "";
 
+  // Feedback after clicking the verification link in the email.
+  React.useEffect(() => {
+    const v = searchParams.get("verified");
+    if (v === "1") toast.success("Email verified — you can sign in now");
+    if (v === "0") toast.error("That verification link is invalid or expired — request a new one by signing in");
+  }, [searchParams]);
+
+  function resendVerification(email: string) {
+    fetch("/api/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    toast.success("If that account needs verification, a new email is on its way");
+  }
+
   async function onLogin(values: LoginValues) {
     const res = await signIn("credentials", { ...values, redirect: false });
     const code = (res as { code?: string } | undefined)?.code;
@@ -65,6 +81,13 @@ export function AuthCard() {
       }
       if (code === "2fa_invalid") {
         toast.error("That code didn't match — try again, or use a recovery code");
+        return;
+      }
+      if (code === "email_unverified") {
+        toast.error("Verify your email first — check your inbox (and spam)", {
+          action: { label: "Resend", onClick: () => resendVerification(values.email) },
+          duration: 8000,
+        });
         return;
       }
       toast.error("Invalid email or password — or too many attempts. Wait a minute and try again.");
@@ -85,6 +108,17 @@ export function AuthCard() {
       toast.error(data.error ?? "Could not create your account");
       return;
     }
+    const data = (await res.json().catch(() => ({}))) as { verify?: boolean };
+
+    if (data.verify) {
+      // Email verification required before first sign-in.
+      toast.success("Account created — check your inbox to verify your email", {
+        duration: 10_000,
+      });
+      registerForm.reset();
+      return;
+    }
+
     toast.success("Account created — signing you in…");
     await signIn("credentials", {
       email: values.email,
@@ -193,6 +227,16 @@ export function AuthCard() {
                   {...registerForm.register("password")}
                 />
                 <PasswordChecklist password={passwordValue} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-confirm-password">Confirm password</Label>
+                <Input
+                  id="reg-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  {...registerForm.register("confirmPassword")}
+                />
+                <FieldError message={registerForm.formState.errors.confirmPassword?.message} />
               </div>
               <Button type="submit" className="w-full" disabled={registerForm.formState.isSubmitting}>
                 {registerForm.formState.isSubmitting && <Loader2 className="animate-spin" />} Create account

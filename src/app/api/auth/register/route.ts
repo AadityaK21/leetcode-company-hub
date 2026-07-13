@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { rateLimit } from "@/lib/rate-limit";
+import { createVerificationToken, emailEnabled, sendVerificationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
@@ -38,5 +39,23 @@ export async function POST(req: Request) {
     data: { userId: created.id, type: "register", meta: { ip } },
   });
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  // Mandatory email verification when a mail provider is configured.
+  // Without RESEND_API_KEY (e.g. local dev), auto-verify so nobody gets locked out.
+  if (emailEnabled()) {
+    try {
+      const token = await createVerificationToken(email);
+      await sendVerificationEmail(email, token);
+      return NextResponse.json({ ok: true, verify: true }, { status: 201 });
+    } catch (err) {
+      console.error("verification email failed:", err);
+      // Account exists but mail failed — let them use "resend" from the login screen.
+      return NextResponse.json({ ok: true, verify: true, mailDelayed: true }, { status: 201 });
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: created.id },
+    data: { emailVerified: new Date() },
+  });
+  return NextResponse.json({ ok: true, verify: false }, { status: 201 });
 }

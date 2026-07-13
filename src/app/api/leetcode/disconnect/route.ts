@@ -8,7 +8,7 @@ export async function POST() {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { leetcodeUsername: null, leetcodeSyncedAt: null },
+    data: { leetcodeUsername: null, leetcodeSyncedAt: null, leetcodeVerifyCode: null },
   });
   return NextResponse.json({ ok: true });
 }

@@ -53,6 +53,22 @@ export async function verifyLeetcodeUser(
   return { exists: true, solvedCount: all?.count ?? null };
 }
 
+/** The user's public profile summary ("aboutMe") — used for ownership checks. */
+export async function fetchProfileSummary(username: string): Promise<string | null> {
+  const data = await gql<{
+    matchedUser: { profile: { aboutMe: string | null } | null } | null;
+  }>(
+    `query ($username: String!) {
+       matchedUser(username: $username) {
+         profile { aboutMe }
+       }
+     }`,
+    { username }
+  );
+  if (!data?.matchedUser) return null;
+  return data.matchedUser.profile?.aboutMe ?? "";
+}
+
 export async function recentAcceptedSlugs(username: string): Promise<string[] | null> {
   const data = await gql<{
     recentAcSubmissionList: { titleSlug: string }[] | null;

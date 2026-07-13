@@ -20,8 +20,10 @@ export function ConnectedAccounts({
 }) {
   const router = useRouter();
   const [username, setUsername] = React.useState("");
-  const [busy, setBusy] = React.useState<"connect" | "sync" | "disconnect" | null>(null);
+  const [busy, setBusy] = React.useState<"connect" | "verify" | "sync" | "disconnect" | null>(null);
   const [lastError, setLastError] = React.useState<string | null>(null);
+  // Pending ownership check: code the user must paste into their LeetCode profile.
+  const [pending, setPending] = React.useState<{ username: string; code: string } | null>(null);
 
   async function connect() {
     setBusy("connect");
@@ -38,11 +40,22 @@ export function ConnectedAccounts({
       toast.error(data.error ?? "Connection failed");
       return;
     }
-    toast.success(
-      data.solvedCount != null
-        ? `Connected — ${data.solvedCount} problems solved on LeetCode`
-        : "LeetCode connected"
-    );
+    setPending({ username: data.username, code: data.code });
+  }
+
+  async function verify() {
+    setBusy("verify");
+    setLastError(null);
+    const res = await fetch("/api/leetcode/verify", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) {
+      setLastError(data.error ?? "Verification failed");
+      toast.error(data.error ?? "Verification failed");
+      return;
+    }
+    setPending(null);
+    toast.success("LeetCode account verified & linked — you can remove the code from your profile now");
     router.refresh();
     // Kick off the first sync immediately.
     void sync(true);
@@ -122,6 +135,54 @@ export function ConnectedAccounts({
               </p>
             )}
           </>
+        ) : pending ? (
+          <div className="space-y-3 rounded-xl bg-secondary/60 p-4">
+            <p className="text-sm font-medium">
+              Verify you own <span className="figure">{pending.username}</span>
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-4 text-sm text-muted-foreground">
+              <li>
+                Copy this code:{" "}
+                <button
+                  type="button"
+                  className="figure rounded-md bg-card px-2 py-0.5 font-semibold text-foreground hover:bg-accent"
+                  onClick={() => {
+                    navigator.clipboard.writeText(pending.code);
+                    toast.success("Code copied");
+                  }}
+                  title="Click to copy"
+                >
+                  {pending.code}
+                </button>
+              </li>
+              <li>
+                Paste it anywhere in your{" "}
+                <a
+                  href="https://leetcode.com/profile/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-foreground"
+                >
+                  LeetCode profile summary
+                </a>{" "}
+                and save.
+              </li>
+              <li>Come back and click Verify. You can remove the code afterwards.</li>
+            </ol>
+            <div className="flex gap-2">
+              <Button variant="lime" size="sm" onClick={verify} disabled={busy !== null}>
+                {busy === "verify" ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Verify
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setPending(null)} disabled={busy !== null}>
+                Cancel
+              </Button>
+            </div>
+            {lastError && (
+              <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
+                {lastError}
+              </p>
+            )}
+          </div>
         ) : (
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-56 flex-1 space-y-1.5">

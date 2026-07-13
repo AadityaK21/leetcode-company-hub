@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
@@ -13,6 +14,11 @@ const schema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "Invalid LeetCode username"),
 });
 
+/**
+ * Step 1 of linking: prove the profile exists, then issue a one-time code the
+ * user pastes into their LeetCode profile summary. /api/leetcode/verify
+ * completes the link once the code is visible on the public profile.
+ */
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,13 +37,17 @@ export async function POST(req: Request) {
     );
   }
 
+  const code = `companyhub-${crypto.randomBytes(4).toString("hex")}`;
   await prisma.user.update({
     where: { id: user.id },
-    data: { leetcodeUsername: parsed.data.username },
-  });
-  await prisma.activity.create({
-    data: { userId: user.id, type: "security", meta: { event: "leetcode_connected" } },
+    data: { leetcodeVerifyCode: `${parsed.data.username}|${code}` },
   });
 
-  return NextResponse.json({ ok: true, username: parsed.data.username, solvedCount });
+  return NextResponse.json({
+    ok: true,
+    pending: true,
+    username: parsed.data.username,
+    code,
+    solvedCount,
+  });
 }

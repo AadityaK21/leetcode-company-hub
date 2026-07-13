@@ -33,10 +33,11 @@ async function main() {
       email,
       name: "Admin",
       role: "ADMIN",
+      emailVerified: new Date(), // seeded admin never needs the verify flow
       passwordHash: await bcrypt.hash(password, 10),
       settings: { create: {} },
     },
-    update: { role: "ADMIN" },
+    update: { role: "ADMIN", emailVerified: new Date() },
   });
   console.log(`Admin ready: ${email}`);
 

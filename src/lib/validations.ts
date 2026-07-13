@@ -18,11 +18,17 @@ export const strongPassword = z
   .regex(/[0-9]/, "Add a number")
   .regex(/[^A-Za-z0-9]/, "Add a special character");
 
-export const registerSchema = z.object({
-  name: z.string().min(2, "Name needs at least 2 characters").max(60),
-  email: z.string().email("Enter a valid email"),
-  password: strongPassword,
-});
+export const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name needs at least 2 characters").max(60),
+    email: z.string().email("Enter a valid email"),
+    password: strongPassword,
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 export const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
