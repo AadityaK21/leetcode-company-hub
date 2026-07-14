@@ -12,6 +12,7 @@
  */
 import AdmZip from "adm-zip";
 import { PrismaClient, Difficulty } from "@prisma/client";
+import { enrichTopics } from "./lib/leetcode-topics";
 
 const prisma = new PrismaClient();
 
@@ -345,6 +346,25 @@ async function main() {
   }
 
   console.log("Import complete.");
+
+  // The company-wise CSVs no longer carry a topics column, so backfill real
+  // topic tags from LeetCode's GraphQL API. Never let this break the import:
+  // the CSV data is already committed above.
+  if (process.env.SKIP_TOPIC_ENRICH !== "1") {
+    try {
+      console.log("Enriching topic tags from LeetCode...");
+      const summary = await enrichTopics(prisma, (m) => console.log(m));
+      console.log(
+        `Topics: ${summary.matched} questions tagged, ${summary.topics} topics, ` +
+          `${summary.links} links.`
+      );
+    } catch (err) {
+      console.warn(
+        "Topic enrichment failed (import data is fine); run `npm run db:enrich-topics` later.",
+        err
+      );
+    }
+  }
 }
 
 main()

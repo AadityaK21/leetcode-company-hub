@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:import": "tsx scripts/import-data.ts",
+    "db:enrich-topics": "tsx scripts/enrich-topics.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"
   },
