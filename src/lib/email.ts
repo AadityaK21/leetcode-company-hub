@@ -25,6 +25,56 @@ export async function createVerificationToken(email: string): Promise<string> {
   return token;
 }
 
+/** Password-reset tokens live in the same table, namespaced by identifier. */
+export async function createResetToken(email: string): Promise<string> {
+  const token = crypto.randomBytes(32).toString("hex");
+  await prisma.verificationToken.deleteMany({ where: { identifier: `reset:${email}` } });
+  await prisma.verificationToken.create({
+    data: {
+      identifier: `reset:${email}`,
+      token: hashToken(token),
+      expires: new Date(Date.now() + 60 * 60 * 1000), // 1h — resets are short-lived
+    },
+  });
+  return token;
+}
+
+export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
+  const base = process.env.AUTH_URL ?? "http://localhost:3000";
+  const url = `${base}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM ?? "CompanyHub <onboarding@resend.dev>",
+      to: [email],
+      subject: "Reset your password — CompanyHub",
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <h2 style="color:#1d4d31">Reset your password</h2>
+          <p>We received a request to reset your CompanyHub password. Click the button below to choose a new one.</p>
+          <p style="margin:28px 0">
+            <a href="${url}" style="background:#1d4d31;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600">
+              Choose new password
+            </a>
+          </p>
+          <p style="color:#666;font-size:13px">This link expires in 1 hour. If you didn't request this, ignore this email — your password stays unchanged.</p>
+        </div>
+      `,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Resend failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+}
+
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
   const base = process.env.AUTH_URL ?? "http://localhost:3000";
   const url = `${base}/api/auth/verify?token=${token}&email=${encodeURIComponent(email)}`;

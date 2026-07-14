@@ -170,7 +170,28 @@ export function AuthCard() {
                 <FieldError message={loginForm.formState.errors.email?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="login-password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="login-password">Password</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const email = loginForm.getValues("email")?.trim();
+                      if (!email) {
+                        toast.error("Enter your email above first, then click again");
+                        return;
+                      }
+                      fetch("/api/auth/forgot-password", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email }),
+                      });
+                      toast.success("If an account exists for that email, a reset link is on its way");
+                    }}
+                    className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <Input
                   id="login-password"
                   type="password"
