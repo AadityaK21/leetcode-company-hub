@@ -17,10 +17,16 @@ export async function GET(req: Request) {
   // Per-user status filters require sign-in; ignore them otherwise.
   const status = userId ? f.status : undefined;
 
+  // `topic` may be a comma-separated list of slugs; match questions carrying
+  // ANY of them (OR semantics) so users can combine tags.
+  const topicSlugs = f.topic
+    ? f.topic.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+
   const questionWhere: Prisma.QuestionWhereInput = {
     ...(f.q ? { title: { contains: f.q, mode: "insensitive" } } : {}),
     ...(f.difficulty ? { difficulty: f.difficulty } : {}),
-    ...(f.topic ? { topics: { some: { topic: { slug: f.topic } } } } : {}),
+    ...(topicSlugs.length ? { topics: { some: { topic: { slug: { in: topicSlugs } } } } } : {}),
     ...(f.sheet ? { sheetItems: { some: { sheet: { slug: f.sheet } } } } : {}),
     ...(status === "BOOKMARKED" ? { bookmarks: { some: { userId: userId! } } } : {}),
     ...(status === "TODO"

@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   RotateCcw,
   SearchX,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -62,11 +63,19 @@ interface QuestionsResponse {
   pageCount: number;
 }
 
+export interface TopicOption {
+  name: string;
+  slug: string;
+  count: number;
+}
+
 interface Props {
   company?: string;
   sheet?: string;
   initialTopic?: string;
   showRecency?: boolean;
+  /** When provided, renders a multi-select topic filter scoped to these tags. */
+  topicOptions?: TopicOption[];
 }
 
 const DIFFICULTIES = ["", "EASY", "MEDIUM", "HARD"] as const;
@@ -86,12 +95,12 @@ const RECENCY = [
   { value: "1y", label: "1 year" },
 ] as const;
 
-export function QuestionTable({ company, sheet, initialTopic, showRecency }: Props) {
+export function QuestionTable({ company, sheet, initialTopic, showRecency, topicOptions }: Props) {
   const [q, setQ] = React.useState("");
   const [difficulty, setDifficulty] = React.useState<string>("");
   const [status, setStatus] = React.useState<string>("");
   const [recency, setRecency] = React.useState<string>("");
-  const [topic] = React.useState(initialTopic ?? "");
+  const [topics, setTopics] = React.useState<string[]>(initialTopic ? [initialTopic] : []);
   const [sort, setSort] = React.useState<"frequency" | "acceptance" | "difficulty" | "title">(
     "frequency"
   );
@@ -102,7 +111,7 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency }: Pro
   const params = new URLSearchParams();
   if (company) params.set("company", company);
   if (sheet) params.set("sheet", sheet);
-  if (topic) params.set("topic", topic);
+  if (topics.length) params.set("topic", topics.join(","));
   if (debouncedQ) params.set("q", debouncedQ);
   if (difficulty) params.set("difficulty", difficulty);
   if (status) params.set("status", status);
@@ -141,6 +150,9 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency }: Pro
     setPage(1);
   };
 
+  const setTopicsReset = resetPage(setTopics);
+  const removeTopic = (slug: string) => setTopicsReset(topics.filter((s) => s !== slug));
+
   return (
     <div className="space-y-4">
       {/* Sticky filter bar */}
@@ -164,12 +176,43 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency }: Pro
         {showRecency && (
           <FilterSelect value={recency} onChange={resetPage(setRecency)} options={RECENCY} label="Asked in" />
         )}
+        {topicOptions && topicOptions.length > 0 && (
+          <TopicFilter options={topicOptions} selected={topics} onChange={setTopicsReset} />
+        )}
         {data && (
           <span className="figure ml-auto pr-2 text-xs text-muted-foreground">
             {data.total} results
           </span>
         )}
       </div>
+
+      {/* Selected topic chips */}
+      {topicOptions && topics.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="eyebrow mr-1">Topics</span>
+          {topics.map((slug) => {
+            const t = topicOptions.find((o) => o.slug === slug);
+            const label = t?.name ?? slug;
+            return (
+              <button
+                key={slug}
+                onClick={() => removeTopic(slug)}
+                aria-label={`Remove ${label} filter`}
+                className="inline-flex items-center gap-1 rounded-full bg-lime/15 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-lime/25"
+              >
+                {label}
+                <X className="size-3" />
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setTopicsReset([])}
+            className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="glass overflow-x-auto rounded-2xl">
@@ -499,6 +542,77 @@ function FilterSelect({
             {value === o.value && <Check className="ml-auto size-3.5" />}
           </DropdownMenuItem>
         ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function TopicFilter({
+  options,
+  selected,
+  onChange,
+}: {
+  options: TopicOption[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const toggle = (slug: string) =>
+    onChange(
+      selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug]
+    );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="rounded-full">
+          Topics
+          {selected.length > 0 && (
+            <span className="figure ml-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-lime px-1 text-[11px] font-semibold text-lime-foreground">
+              {selected.length}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
+        <DropdownMenuLabel>Filter by topic</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {selected.length > 0 && (
+          <>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                onChange([]);
+              }}
+            >
+              Clear all
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {options.map((o) => {
+          const active = selected.includes(o.slug);
+          return (
+            <DropdownMenuItem
+              key={o.slug}
+              className="gap-2"
+              onSelect={(e) => {
+                e.preventDefault();
+                toggle(o.slug);
+              }}
+            >
+              <span
+                className={cn(
+                  "flex size-4 shrink-0 items-center justify-center rounded border",
+                  active ? "border-lime bg-lime text-lime-foreground" : "border-border"
+                )}
+              >
+                {active && <Check className="size-3" strokeWidth={3} />}
+              </span>
+              <span className="flex-1 truncate">{o.name}</span>
+              <span className="figure text-xs text-muted-foreground">{o.count}</span>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

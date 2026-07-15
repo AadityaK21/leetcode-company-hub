@@ -102,7 +102,7 @@ export default async function CompanyPage({ params }: Props) {
       </div>
 
       {/* Questions */}
-      <QuestionTable company={company.slug} showRecency />
+      <QuestionTable company={company.slug} showRecency topicOptions={topics} />
     </div>
   );
 }
