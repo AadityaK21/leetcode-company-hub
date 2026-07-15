@@ -45,6 +45,8 @@ export const getTrendingQuestions = unstable_cache(
 );
 
 export async function getCompanyTopicDistribution(companyId: string) {
+  // Return every topic this company asks (ordered by frequency) so the chip
+  // filter can offer all of them; the "most asked" display just slices the top.
   const rows = await prisma.$queryRaw<{ name: string; slug: string; count: bigint }[]>`
     SELECT t."name", t."slug", COUNT(*)::bigint AS count
     FROM "CompanyQuestion" cq
@@ -53,7 +55,7 @@ export async function getCompanyTopicDistribution(companyId: string) {
     WHERE cq."companyId" = ${companyId}
     GROUP BY t."name", t."slug"
     ORDER BY count DESC
-    LIMIT 12
+    LIMIT 50
   `;
   return rows.map((r) => ({ name: r.name, slug: r.slug, count: Number(r.count) }));
 }
