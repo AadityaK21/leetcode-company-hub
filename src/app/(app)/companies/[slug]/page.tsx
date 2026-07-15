@@ -14,7 +14,16 @@ import { formatNumber } from "@/lib/utils";
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ topic?: string }>;
+  searchParams: Promise<{
+    topic?: string;
+    q?: string;
+    difficulty?: string;
+    status?: string;
+    recency?: string;
+    sort?: string;
+    order?: string;
+    page?: string;
+  }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -25,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CompanyPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { topic } = await searchParams;
+  const sp = await searchParams;
 
   const company = await prisma.company.findUnique({ where: { slug } });
   if (!company) notFound();
@@ -105,8 +114,17 @@ export default async function CompanyPage({ params, searchParams }: Props) {
       <QuestionTable
         company={company.slug}
         showRecency
-        initialTopic={topic}
+        initialTopic={sp.topic}
         topicOptions={topics}
+        initialFilters={{
+          q: sp.q,
+          difficulty: sp.difficulty,
+          status: sp.status,
+          recency: sp.recency,
+          sort: sp.sort,
+          order: sp.order,
+          page: sp.page,
+        }}
       />
     </div>
   );

@@ -63,6 +63,17 @@ interface QuestionsResponse {
   pageCount: number;
 }
 
+/** Filter values read from the URL on load, so a reload restores the view. */
+export interface QuestionTableFilters {
+  q?: string;
+  difficulty?: string;
+  status?: string;
+  recency?: string;
+  sort?: string;
+  order?: string;
+  page?: string;
+}
+
 interface Props {
   company?: string;
   sheet?: string;
@@ -71,6 +82,8 @@ interface Props {
   showRecency?: boolean;
   /** When provided, renders the multi-select topic chip row above the table. */
   topicOptions?: TopicChipOption[];
+  /** Initial filter values (from the page's search params). */
+  initialFilters?: QuestionTableFilters;
 }
 
 const DIFFICULTIES = ["", "EASY", "MEDIUM", "HARD"] as const;
@@ -90,19 +103,40 @@ const RECENCY = [
   { value: "1y", label: "1 year" },
 ] as const;
 
-export function QuestionTable({ company, sheet, initialTopic, showRecency, topicOptions }: Props) {
-  const [q, setQ] = React.useState("");
-  const [difficulty, setDifficulty] = React.useState<string>("");
-  const [status, setStatus] = React.useState<string>("");
-  const [recency, setRecency] = React.useState<string>("");
+const STATUS_VALUES: readonly string[] = STATUSES.map((s) => s.value);
+const RECENCY_VALUES: readonly string[] = RECENCY.map((r) => r.value);
+const SORTS = ["frequency", "acceptance", "difficulty", "title"] as const;
+type SortKey = (typeof SORTS)[number];
+
+/** Return `value` only if it's in the allowed set, else the fallback. */
+function pick(allowed: readonly string[], value: string | undefined, fallback: string): string {
+  return value && allowed.includes(value) ? value : fallback;
+}
+
+export function QuestionTable({
+  company,
+  sheet,
+  initialTopic,
+  showRecency,
+  topicOptions,
+  initialFilters,
+}: Props) {
+  const f0 = initialFilters ?? {};
+  const [q, setQ] = React.useState(f0.q ?? "");
+  const [difficulty, setDifficulty] = React.useState(pick(DIFFICULTIES, f0.difficulty, ""));
+  const [status, setStatus] = React.useState(pick(STATUS_VALUES, f0.status, ""));
+  const [recency, setRecency] = React.useState(pick(RECENCY_VALUES, f0.recency, ""));
   const [topics, setTopics] = React.useState<string[]>(
     initialTopic ? initialTopic.split(",").filter(Boolean) : []
   );
-  const [sort, setSort] = React.useState<"frequency" | "acceptance" | "difficulty" | "title">(
-    "frequency"
+  const [sort, setSort] = React.useState<SortKey>(
+    (SORTS as readonly string[]).includes(f0.sort ?? "") ? (f0.sort as SortKey) : "frequency"
   );
-  const [order, setOrder] = React.useState<"asc" | "desc">("desc");
-  const [page, setPage] = React.useState(1);
+  const [order, setOrder] = React.useState<"asc" | "desc">(f0.order === "asc" ? "asc" : "desc");
+  const [page, setPage] = React.useState(() => {
+    const n = Number(f0.page);
+    return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+  });
   const debouncedQ = useDebounce(q, 300);
 
   const params = new URLSearchParams();
@@ -116,6 +150,23 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency, topic
   params.set("sort", sort);
   params.set("order", order);
   params.set("page", String(page));
+
+  // Mirror the active filters in the URL (silently, no navigation/scroll) so a
+  // full page reload restores exactly what the user was looking at.
+  React.useEffect(() => {
+    const sp = new URLSearchParams();
+    if (topics.length) sp.set("topic", topics.join(","));
+    if (debouncedQ) sp.set("q", debouncedQ);
+    if (difficulty) sp.set("difficulty", difficulty);
+    if (status) sp.set("status", status);
+    if (recency) sp.set("recency", recency);
+    if (sort !== "frequency") sp.set("sort", sort);
+    if (order !== "desc") sp.set("order", order);
+    if (page > 1) sp.set("page", String(page));
+    const qs = sp.toString();
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, "", url);
+  }, [topics, debouncedQ, difficulty, status, recency, sort, order, page]);
 
   const { data, isLoading, isError, refetch } = useQuery<QuestionsResponse>({
     queryKey: ["questions", params.toString()],
@@ -133,7 +184,7 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency, topic
     [data]
   );
 
-  function toggleSort(next: typeof sort) {
+  function toggleSort(next: SortKey) {
     if (sort === next) setOrder(order === "desc" ? "asc" : "desc");
     else {
       setSort(next);

@@ -5,12 +5,23 @@ import { RandomPickButton } from "@/components/questions/random-pick-button";
 
 export const metadata = { title: "Problems — CompanyHub" };
 
+interface SearchParams {
+  topic?: string;
+  q?: string;
+  difficulty?: string;
+  status?: string;
+  recency?: string;
+  sort?: string;
+  order?: string;
+  page?: string;
+}
+
 export default async function ProblemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const { topic } = await searchParams;
+  const sp = await searchParams;
   const topics = await prisma.topic.findMany({
     orderBy: { questions: { _count: "desc" } },
     select: { slug: true, name: true },
@@ -25,7 +36,19 @@ export default async function ProblemsPage({
         actions={<RandomPickButton variant="lime" />}
       />
 
-      <QuestionTable initialTopic={topic} topicOptions={topics} />
+      <QuestionTable
+        initialTopic={sp.topic}
+        topicOptions={topics}
+        initialFilters={{
+          q: sp.q,
+          difficulty: sp.difficulty,
+          status: sp.status,
+          recency: sp.recency,
+          sort: sp.sort,
+          order: sp.order,
+          page: sp.page,
+        }}
+      />
     </div>
   );
 }
