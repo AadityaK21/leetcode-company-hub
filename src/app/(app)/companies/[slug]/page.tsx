@@ -6,15 +6,11 @@ import { getCompanyTopicDistribution } from "@/lib/queries";
 import { CompanyLogo } from "@/components/shared/company-logo";
 import { DifficultySpectrum } from "@/components/shared/difficulty-spectrum";
 import { QuestionTable } from "@/components/questions/question-table";
-import { TopicChipFilter } from "@/components/questions/topic-chip-filter";
 import { CompanyBookmarkButton } from "@/components/companies/company-bookmark-button";
 import { RandomPickButton } from "@/components/questions/random-pick-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
-
-// Cache each company page for 5 minutes — user-specific data loads client-side.
-export const revalidate = 300;
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -30,7 +26,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CompanyPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { topic } = await searchParams;
-  const selected = (topic ?? "").split(",").filter(Boolean);
 
   const company = await prisma.company.findUnique({ where: { slug } });
   if (!company) notFound();
@@ -106,16 +101,13 @@ export default async function CompanyPage({ params, searchParams }: Props) {
         </div>
       </div>
 
-      {/* Topic filter + questions */}
-      <div className="space-y-4">
-        <TopicChipFilter options={topics} selected={selected} />
-        <QuestionTable
-          key={topic ?? "all"}
-          company={company.slug}
-          showRecency
-          initialTopic={topic}
-        />
-      </div>
+      {/* Questions (with in-table topic chips) */}
+      <QuestionTable
+        company={company.slug}
+        showRecency
+        initialTopic={topic}
+        topicOptions={topics}
+      />
     </div>
   );
 }

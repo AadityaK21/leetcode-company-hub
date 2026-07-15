@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export interface TopicChipOption {
@@ -9,36 +8,29 @@ export interface TopicChipOption {
 }
 
 /**
- * Always-visible, multi-select topic chips. The selection lives in the URL
- * (`?topic=slug1,slug2`) so it's shareable and the server component can read it
- * back to filter the question list. Toggling a chip adds/removes that tag.
+ * Controlled, multi-select topic chips. Presentational only — the parent owns
+ * the `selected` state, so toggling a chip refilters in place without any
+ * navigation or reload (other filters and scroll position are preserved).
  */
 export function TopicChipFilter({
   options,
   selected,
+  onChange,
 }: {
   options: TopicChipOption[];
   selected: string[];
+  onChange: (next: string[]) => void;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  function navigate(next: string[]) {
-    const query = next.length ? `?topic=${next.join(",")}` : "";
-    router.push(`${pathname}${query}`, { scroll: false });
-  }
-
-  function toggle(slug: string) {
-    navigate(
-      selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug]
-    );
-  }
-
   if (options.length === 0) return null;
 
+  const toggle = (slug: string) =>
+    onChange(
+      selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug]
+    );
+
   return (
-    <div className="mb-4 flex flex-wrap gap-1.5" aria-label="Filter by topic">
-      <Chip active={selected.length === 0} onClick={() => navigate([])} label="All topics" />
+    <div className="flex flex-wrap gap-1.5" aria-label="Filter by topic">
+      <Chip active={selected.length === 0} onClick={() => onChange([])} label="All topics" />
       {options.map((t) => (
         <Chip
           key={t.slug}

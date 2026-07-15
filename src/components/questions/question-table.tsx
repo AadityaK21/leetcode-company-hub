@@ -37,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DifficultyBadge } from "@/components/shared/difficulty-badge";
 import { FrequencyMeter } from "@/components/shared/frequency-meter";
 import { EmptyState } from "@/components/shared/empty-state";
+import { TopicChipFilter, type TopicChipOption } from "@/components/questions/topic-chip-filter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useQuestionMutations } from "@/components/questions/use-question-mutations";
 import type { Difficulty } from "@prisma/client";
@@ -65,9 +66,11 @@ interface QuestionsResponse {
 interface Props {
   company?: string;
   sheet?: string;
-  /** Comma-separated topic slugs to pre-filter by (driven by the chip row / URL). */
+  /** Comma-separated topic slugs to pre-select (e.g. from a ?topic= deep link). */
   initialTopic?: string;
   showRecency?: boolean;
+  /** When provided, renders the multi-select topic chip row above the table. */
+  topicOptions?: TopicChipOption[];
 }
 
 const DIFFICULTIES = ["", "EASY", "MEDIUM", "HARD"] as const;
@@ -87,12 +90,12 @@ const RECENCY = [
   { value: "1y", label: "1 year" },
 ] as const;
 
-export function QuestionTable({ company, sheet, initialTopic, showRecency }: Props) {
+export function QuestionTable({ company, sheet, initialTopic, showRecency, topicOptions }: Props) {
   const [q, setQ] = React.useState("");
   const [difficulty, setDifficulty] = React.useState<string>("");
   const [status, setStatus] = React.useState<string>("");
   const [recency, setRecency] = React.useState<string>("");
-  const [topics] = React.useState<string[]>(
+  const [topics, setTopics] = React.useState<string[]>(
     initialTopic ? initialTopic.split(",").filter(Boolean) : []
   );
   const [sort, setSort] = React.useState<"frequency" | "acceptance" | "difficulty" | "title">(
@@ -146,6 +149,15 @@ export function QuestionTable({ company, sheet, initialTopic, showRecency }: Pro
 
   return (
     <div className="space-y-4">
+      {/* Topic chips — toggling refilters in place, keeping the other filters */}
+      {topicOptions && topicOptions.length > 0 && (
+        <TopicChipFilter
+          options={topicOptions}
+          selected={topics}
+          onChange={resetPage(setTopics)}
+        />
+      )}
+
       {/* Sticky filter bar */}
       <div className="glass sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-2xl p-2">
         <Input
