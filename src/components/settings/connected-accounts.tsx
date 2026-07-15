@@ -72,10 +72,15 @@ export function ConnectedAccounts({
       if (!silent) toast.error(data.error ?? "Sync failed");
       return;
     }
-    if (data.imported > 0) {
-      toast.success(`Imported ${data.imported} verified solve${data.imported === 1 ? "" : "s"} from LeetCode`);
+    const solved = data.imported ?? 0;
+    const attempted = data.attempted ?? 0;
+    if (solved + attempted > 0) {
+      const parts: string[] = [];
+      if (solved) parts.push(`${solved} solved`);
+      if (attempted) parts.push(`${attempted} attempted`);
+      toast.success(`Synced from LeetCode: ${parts.join(" · ")}`);
     } else if (!silent) {
-      toast.success("Up to date — no new solves found");
+      toast.success("Up to date — no new activity found");
     }
     router.refresh();
   }
@@ -205,28 +210,58 @@ export function ConnectedAccounts({
   );
 }
 
-/** Silently re-syncs in the background when the last sync is stale (>6h). */
-export function LeetcodeAutoSync({ staleSyncedAt }: { staleSyncedAt: string | null }) {
+/**
+ * Keeps LeetCode solves/attempts near real-time. Syncs on mount, whenever the
+ * tab regains focus (e.g. you switch back after solving on leetcode.com), and
+ * on navigation — throttled to at most once a minute so it stays polite.
+ */
+export function LeetcodeAutoSync({ initialSyncedAt }: { initialSyncedAt: string | null }) {
   const router = useRouter();
-  const fired = React.useRef(false);
+  const lastSyncRef = React.useRef<number>(
+    initialSyncedAt ? new Date(initialSyncedAt).getTime() : 0
+  );
+  const inFlightRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (fired.current) return;
-    const stale =
-      !staleSyncedAt || Date.now() - new Date(staleSyncedAt).getTime() > 6 * 60 * 60 * 1000;
-    if (!stale) return;
-    fired.current = true;
-    fetch("/api/leetcode/sync", { method: "POST" })
-      .then(async (res) => {
+    const MIN_INTERVAL = 60_000; // don't poll LeetCode more than once a minute
+
+    async function maybeSync() {
+      if (inFlightRef.current) return;
+      if (Date.now() - lastSyncRef.current < MIN_INTERVAL) return;
+      inFlightRef.current = true;
+      lastSyncRef.current = Date.now();
+      try {
+        const res = await fetch("/api/leetcode/sync", { method: "POST" });
         if (!res.ok) return;
         const data = await res.json().catch(() => ({}));
-        if (data.imported > 0) {
-          toast.success(`Synced ${data.imported} new solve${data.imported === 1 ? "" : "s"} from LeetCode`);
+        const solved = data.imported ?? 0;
+        const attempted = data.attempted ?? 0;
+        if (solved + attempted > 0) {
+          const parts: string[] = [];
+          if (solved) parts.push(`${solved} solved`);
+          if (attempted) parts.push(`${attempted} attempted`);
+          toast.success(`Synced from LeetCode: ${parts.join(" · ")}`);
           router.refresh();
         }
-      })
-      .catch(() => {});
-  }, [staleSyncedAt, router]);
+      } catch {
+        /* network hiccup — ignore, we'll retry on next focus */
+      } finally {
+        inFlightRef.current = false;
+      }
+    }
+
+    void maybeSync(); // on mount / navigation
+
+    function onVisible() {
+      if (document.visibilityState === "visible") void maybeSync();
+    }
+    window.addEventListener("focus", maybeSync);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", maybeSync);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [router]);
 
   return null;
 }

@@ -2,9 +2,9 @@
  * LeetCode public GraphQL helpers.
  *
  * Honest limitation: LeetCode's public API only exposes a user's ~20 most
- * recent ACCEPTED submissions. Full history requires their session cookie,
- * which we will never ask for. So sync is incremental: it imports recent
- * solves each run and accumulates over time.
+ * recent submissions. Full history requires their session cookie, which we
+ * will never ask for. So sync is incremental: it imports recent solves/attempts
+ * each run and accumulates over time.
  */
 const ENDPOINT = "https://leetcode.com/graphql";
 
@@ -80,4 +80,35 @@ export async function recentAcceptedSlugs(username: string): Promise<string[] | 
   );
   if (!data?.recentAcSubmissionList) return null;
   return [...new Set(data.recentAcSubmissionList.map((s) => s.titleSlug))];
+}
+
+export interface RecentSubmission {
+  titleSlug: string;
+  accepted: boolean;
+}
+
+/**
+ * The user's recent submissions across ALL statuses (not just accepted), so we
+ * can mark questions "attempted" when a submission wasn't accepted. Best-effort:
+ * returns null if the profile hides submissions or LeetCode doesn't respond.
+ */
+export async function recentSubmissions(
+  username: string
+): Promise<RecentSubmission[] | null> {
+  const data = await gql<{
+    recentSubmissionList: { titleSlug: string; statusDisplay: string }[] | null;
+  }>(
+    `query ($username: String!, $limit: Int!) {
+       recentSubmissionList(username: $username, limit: $limit) {
+         titleSlug
+         statusDisplay
+       }
+     }`,
+    { username, limit: 20 }
+  );
+  if (!data?.recentSubmissionList) return null;
+  return data.recentSubmissionList.map((s) => ({
+    titleSlug: s.titleSlug,
+    accepted: s.statusDisplay === "Accepted",
+  }));
 }

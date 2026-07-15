@@ -1,6 +1,7 @@
 import { AppShell, type PinnedCompany } from "@/components/layout/app-shell";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { PreferencesApplier } from "@/components/preferences-applier";
+import { LeetcodeAutoSync } from "@/components/settings/connected-accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { currentStreak } from "@/lib/gamification";
@@ -9,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   const userId = session?.user?.id ?? null;
 
-  const [settings, pinnedBookmarks, streak] = await Promise.all([
+  const [settings, pinnedBookmarks, streak, lcAccount] = await Promise.all([
     userId
       ? prisma.userSettings.findUnique({
           where: { userId },
@@ -25,6 +26,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         })
       : [],
     userId ? currentStreak(userId) : 0,
+    userId
+      ? prisma.user.findUnique({
+          where: { id: userId },
+          select: { leetcodeUsername: true, leetcodeSyncedAt: true },
+        })
+      : null,
   ]);
 
   const pinned: PinnedCompany[] = pinnedBookmarks
@@ -39,6 +46,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         fontSize={settings?.fontSize ?? "md"}
         reducedMotion={settings?.reducedMotion ?? false}
       />
+      {lcAccount?.leetcodeUsername && (
+        <LeetcodeAutoSync
+          initialSyncedAt={lcAccount.leetcodeSyncedAt?.toISOString() ?? null}
+        />
+      )}
       <AppShell pinned={pinned} streak={streak}>
         {children}
       </AppShell>

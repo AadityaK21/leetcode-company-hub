@@ -29,7 +29,6 @@ import {
   type OnboardingSheet,
 } from "@/components/dashboard/onboarding-dialog";
 import { CompanyLogo } from "@/components/shared/company-logo";
-import { LeetcodeAutoSync } from "@/components/settings/connected-accounts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -112,11 +111,6 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const lcAccount = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { leetcodeUsername: true, leetcodeSyncedAt: true },
-  });
-
   const needsOnboarding = !user?.settings?.onboarded;
   let onboardingCompanies: OnboardingCompany[] = [];
   let onboardingSheets: OnboardingSheet[] = [];
@@ -186,9 +180,7 @@ export default async function DashboardPage() {
         solved={dailySolved}
       />
 
-      {lcAccount?.leetcodeUsername && (
-        <LeetcodeAutoSync staleSyncedAt={lcAccount.leetcodeSyncedAt?.toISOString() ?? null} />
-      )}
+      {/* LeetCode auto-sync now runs app-wide from (app)/layout.tsx. */}
 
       {needsOnboarding && (
         <OnboardingDialog
