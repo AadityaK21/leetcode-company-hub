@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { fetchProfileSummary } from "@/lib/leetcode";
 
 /**
@@ -11,7 +11,7 @@ import { fetchProfileSummary } from "@/lib/leetcode";
 export async function POST() {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(`lc-verify:${user.id}`, 10, 10 * 60_000)) {
+  if (!(await rateLimitShared(`lc-verify:${user.id}`, 10, 10 * 60_000))) {
     return NextResponse.json({ error: "Too many attempts — slow down" }, { status: 429 });
   }
 

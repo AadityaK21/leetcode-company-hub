@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { hashToken } from "@/lib/email";
 import { strongPassword } from "@/lib/validations";
 
@@ -14,7 +14,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (!rateLimit(`reset:${ip}`, 10, 10 * 60_000)) {
+  if (!(await rateLimitShared(`reset:${ip}`, 10, 10 * 60_000))) {
     return NextResponse.json({ error: "Too many attempts — try again later" }, { status: 429 });
   }
 
@@ -46,6 +46,8 @@ export async function POST(req: Request) {
         passwordHash: await bcrypt.hash(parsed.data.password, 12),
         failedLogins: 0,
         lockedUntil: null,
+        // Sign out every device holding a token issued before this reset.
+        sessionVersion: { increment: 1 },
         // Clicking an emailed link proves ownership of the address.
         emailVerified: user.emailVerified ?? new Date(),
       },

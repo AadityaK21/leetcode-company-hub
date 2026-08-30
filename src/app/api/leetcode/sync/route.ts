@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { recentAcceptedSlugs, recentSubmissions } from "@/lib/leetcode";
 import { recordSolve } from "@/lib/gamification";
 
@@ -15,7 +15,7 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // Generous limit so tab-focus auto-sync + manual clicks don't false-trip;
   // the client throttles itself and LeetCode is only hit on real changes.
-  if (!rateLimit(`lc-sync:${user.id}`, 20, 10 * 60_000)) {
+  if (!(await rateLimitShared(`lc-sync:${user.id}`, 20, 10 * 60_000))) {
     return NextResponse.json({ error: "Syncing too often — try again in a few minutes" }, { status: 429 });
   }
 

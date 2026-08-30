@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { generateTotpSecret, totpUri } from "@/lib/two-factor";
 
 /**
@@ -12,7 +12,7 @@ import { generateTotpSecret, totpUri } from "@/lib/two-factor";
 export async function POST() {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(`2fa-setup:${user.id}`, 5, 10 * 60_000)) {
+  if (!(await rateLimitShared(`2fa-setup:${user.id}`, 5, 10 * 60_000))) {
     return NextResponse.json({ error: "Too many attempts — slow down" }, { status: 429 });
   }
 

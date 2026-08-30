@@ -47,7 +47,9 @@ model User {
   lockedUntil   DateTime?
   twoFactorEnabled Boolean  @default(false)
   twoFactorSecret  String?              // AES-256-GCM encrypted at rest
-  recoveryCodes    String[] @default([]) // SHA-256 hashes, single-use
+  recoveryCodes    String[] @default([]) // bcrypt hashes, single-use
+  lastTotpStep     Int?                 // blocks replay of an already-used TOTP code
+  sessionVersion   Int      @default(0) // bump to invalidate every issued JWT
   lastLoginAt   DateTime?
   leetcodeUsername String?
   leetcodeSyncedAt DateTime?
@@ -344,4 +346,15 @@ model UserAchievement {
   achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
+}
+
+/// Cross-instance rate-limit counters. A serverless deployment runs many
+/// isolated processes, so an in-memory Map resets constantly and lets an
+/// attacker parallelise straight past the limit. This table is shared.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }

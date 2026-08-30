@@ -110,3 +110,44 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     throw new Error(`Resend failed (${res.status}): ${text.slice(0, 200)}`);
   }
 }
+
+/**
+ * Sent when someone tries to register an address that already has an account.
+ * The registration endpoint answers identically either way, so the signup form
+ * can't be used to test whether a given person has an account here; the real
+ * owner is the only one who learns anything.
+ */
+export async function sendDuplicateRegistrationEmail(email: string): Promise<void> {
+  const base = process.env.AUTH_URL ?? "http://localhost:3000";
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM ?? "CompanyHub <onboarding@resend.dev>",
+      to: [email],
+      subject: "You already have a CompanyHub account",
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <h2 style="color:#1d4d31">You already have an account</h2>
+          <p>Someone just tried to sign up with this email address. You already have a CompanyHub account, so we didn't create a second one.</p>
+          <p style="margin:28px 0">
+            <a href="${base}/login" style="background:#1d4d31;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600">
+              Sign in
+            </a>
+          </p>
+          <p style="color:#666;font-size:13px">If that was you, just sign in — or reset your password from the login page if you've forgotten it. If it wasn't you, no action is needed: nothing about your account has changed.</p>
+        </div>
+      `,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Resend failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+}

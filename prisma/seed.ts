@@ -1,6 +1,7 @@
 import { PrismaClient, Difficulty } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { BLIND_75 } from "../src/data/blind75";
+import { strongPassword } from "../src/lib/validations";
 
 const prisma = new PrismaClient();
 
@@ -26,7 +27,18 @@ const TOPIC_SHEETS = [
 async function main() {
   // --- Admin user ---
   const email = process.env.ADMIN_EMAIL ?? "admin@example.com";
-  const password = process.env.ADMIN_PASSWORD ?? "change-me-now";
+  const password = process.env.ADMIN_PASSWORD ?? "";
+
+  // This seed is meant to be run against production, so a placeholder here
+  // becomes a real privileged account with a guessable password. Refuse
+  // rather than quietly create one.
+  const strong = strongPassword.safeParse(password);
+  if (!strong.success) {
+    throw new Error(
+      `ADMIN_PASSWORD is not strong enough (${strong.error.issues[0].message}). ` +
+        "Set a strong value in .env before seeding."
+    );
+  }
   await prisma.user.upsert({
     where: { email },
     create: {

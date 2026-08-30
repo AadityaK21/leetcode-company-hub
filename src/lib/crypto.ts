@@ -2,12 +2,20 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypt
 
 /**
  * AES-256-GCM encryption for secrets at rest (e.g. TOTP seeds).
- * Key is derived from AUTH_SECRET so no extra env var is needed.
+ * Key comes from ENCRYPTION_KEY, falling back to AUTH_SECRET.
  * Format: iv.ciphertext.authTag (base64url, dot-separated).
  */
 function key(): Buffer {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) throw new Error("AUTH_SECRET is required for encryption");
+  // Deliberately separate from AUTH_SECRET. The two have opposite lifecycles:
+  // AUTH_SECRET should be rotated after any incident, while TOTP secrets must
+  // stay decryptable forever. Deriving both from one value means rotating it
+  // silently locks out every 2FA user. The fallback keeps existing installs
+  // working; set ENCRYPTION_KEY to your current AUTH_SECRET, then AUTH_SECRET
+  // becomes safe to rotate on its own.
+  const secret = process.env.ENCRYPTION_KEY ?? process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error("ENCRYPTION_KEY (or AUTH_SECRET) is required for encryption");
+  }
   return createHash("sha256").update(secret).digest();
 }
 
