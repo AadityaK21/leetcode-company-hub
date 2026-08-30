@@ -5,3 +5,7 @@ out
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Local secret hand-offs - never commit these
+ADMIN_PASSWORD.txt
+*.secret.txt

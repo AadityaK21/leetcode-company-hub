@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { verifyTotp, generateRecoveryCodes } from "@/lib/two-factor";
 
 const schema = z.object({ code: z.string().min(6).max(10) });
@@ -14,7 +14,7 @@ const schema = z.object({ code: z.string().min(6).max(10) });
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(`2fa-verify:${user.id}`, 10, 10 * 60_000)) {
+  if (!(await rateLimitShared(`2fa-verify:${user.id}`, 10, 10 * 60_000))) {
     return NextResponse.json({ error: "Too many attempts — slow down" }, { status: 429 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That code didn't match — try the next one" }, { status: 400 });
   }
 
-  const { plain, hashed } = generateRecoveryCodes();
+  const { plain, hashed } = await generateRecoveryCodes();
   await prisma.user.update({
     where: { id: user.id },
     data: { twoFactorEnabled: true, recoveryCodes: hashed },

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 
 const schema = z.object({
   language: z.enum(["python", "javascript", "typescript", "java", "cpp", "go", "rust", "csharp", "kotlin"]),
@@ -120,7 +120,7 @@ async function runGodbolt(
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Sign in to run code" }, { status: 401 });
-  if (!rateLimit(`execute:${user.id}`, 10, 60_000)) {
+  if (!(await rateLimitShared(`execute:${user.id}`, 10, 60_000))) {
     return NextResponse.json({ error: "Too many runs — wait a moment" }, { status: 429 });
   }
 

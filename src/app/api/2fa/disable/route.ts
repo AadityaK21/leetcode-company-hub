@@ -3,7 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/two-factor";
 
 const schema = z.object({
@@ -19,7 +19,7 @@ const schema = z.object({
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!rateLimit(`2fa-disable:${user.id}`, 5, 10 * 60_000)) {
+  if (!(await rateLimitShared(`2fa-disable:${user.id}`, 5, 10 * 60_000))) {
     return NextResponse.json({ error: "Too many attempts — slow down" }, { status: 429 });
   }
 

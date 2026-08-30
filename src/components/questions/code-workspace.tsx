@@ -190,6 +190,12 @@ export function CodeWorkspace({ slug, signedIn }: { slug: string; signedIn: bool
         </div>
       </div>
 
+      {/* People should know their code leaves our servers to be executed. */}
+      <p className="border-b px-3 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+        Running sends your code to Wandbox or Compiler Explorer, third-party
+        sandboxes, to be compiled and executed. Avoid pasting anything private.
+      </p>
+
       {/* Editor */}
       <div className={cn("h-80", fullscreen && "min-h-0 flex-1")}>
         <MonacoEditor

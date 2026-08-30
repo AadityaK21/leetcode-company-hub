@@ -7,8 +7,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
-import { rateLimit } from "@/lib/rate-limit";
-import { verifyTotp, normalizeAndHash } from "@/lib/two-factor";
+import { rateLimitShared } from "@/lib/rate-limit";
+import { verifyTotpStep, matchRecoveryCode } from "@/lib/two-factor";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -25,6 +25,8 @@ const DUMMY_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8i9OFLmrmXiEJhxqUuGyeIkyzTpOJq
 
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MINUTES = 15;
+/** How often a live token re-checks role + sessionVersion against the database. */
+const REVALIDATE_MS = 5 * 60_000;
 
 /** Surfaced to the client as res.code so the UI can ask for the 2FA code. */
 class TwoFactorRequired extends CredentialsSignin {
@@ -40,9 +42,58 @@ class EmailUnverified extends CredentialsSignin {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
+  callbacks: {
+    ...authConfig.callbacks,
+    /**
+     * The edge config stamps the token at sign-in only, which means a role
+     * change never lands and a password reset never logs anyone out. Here we
+     * have Prisma, so we re-read both at most once every REVALIDATE_MS.
+     */
+    async jwt({ token, user }) {
+      if (user?.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true, sessionVersion: true },
+        });
+        token.id = user.id;
+        token.role = dbUser?.role ?? "USER";
+        token.sv = dbUser?.sessionVersion ?? 0;
+        token.checkedAt = Date.now();
+        return token;
+      }
+
+      // Read defensively: the JWT payload is loosely typed, so narrow rather
+      // than assume the shape we wrote on the previous pass.
+      const tokenId = typeof token.id === "string" ? token.id : null;
+      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
+      const stampedVersion = typeof token.sv === "number" ? token.sv : 0;
+
+      if (!tokenId) return token;
+      if (Date.now() - checkedAt < REVALIDATE_MS) return token;
+
+      const fresh = await prisma.user.findUnique({
+        where: { id: tokenId },
+        select: { role: true, sessionVersion: true },
+      });
+
+      // Account deleted, or every session revoked since this token was issued.
+      if (!fresh || fresh.sessionVersion !== stampedVersion) return null;
+
+      token.role = fresh.role;
+      token.checkedAt = Date.now();
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = (token.role as "USER" | "ADMIN") ?? "USER";
+      }
+      return session;
+    },
+  },
   providers: [
-    Google({ allowDangerousEmailAccountLinking: true }),
-    GitHub({ allowDangerousEmailAccountLinking: true }),
+    Google({ allowDangerousEmailAccountLinking: false }),
+    GitHub({ allowDangerousEmailAccountLinking: false }),
     Credentials({
       credentials: { email: {}, password: {}, totp: {} },
       async authorize(raw, request) {
@@ -53,8 +104,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // ——— Burst protection ———
         const ip =
           request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-        if (!rateLimit(`login:ip:${ip}`, 20, 60_000)) return null;
-        if (!rateLimit(`login:email:${email}`, 10, 60_000)) return null;
+        if (!(await rateLimitShared(`login:ip:${ip}`, 20, 60_000))) return null;
+        if (!(await rateLimitShared(`login:email:${email}`, 10, 60_000))) return null;
 
         const user = await prisma.user.findUnique({ where: { email } });
 
@@ -92,16 +143,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const code = parsed.data.totp?.trim();
           if (!code) throw new TwoFactorRequired();
 
-          let passed = verifyTotp(code, user.twoFactorSecret);
+          let passed = false;
+          const step = verifyTotpStep(code, user.twoFactorSecret);
 
-          // Fall back to a single-use recovery code.
-          if (!passed && code.length >= 8) {
-            const hashed = normalizeAndHash(code);
-            if (user.recoveryCodes.includes(hashed)) {
+          if (step !== null) {
+            // Refuse a code that was already spent — the 90-second validity
+            // window is otherwise a free replay for anyone who captured it.
+            if (user.lastTotpStep !== null && step <= user.lastTotpStep) {
+              throw new TwoFactorInvalid();
+            }
+            passed = true;
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastTotpStep: step },
+            });
+          } else if (code.length >= 8) {
+            // Fall back to a single-use recovery code.
+            const idx = await matchRecoveryCode(code, user.recoveryCodes);
+            if (idx >= 0) {
               passed = true;
               await prisma.user.update({
                 where: { id: user.id },
-                data: { recoveryCodes: user.recoveryCodes.filter((c) => c !== hashed) },
+                data: { recoveryCodes: user.recoveryCodes.filter((_, i) => i !== idx) },
               });
             }
           }

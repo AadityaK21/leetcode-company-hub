@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
-import { rateLimit } from "@/lib/rate-limit";
-import { createVerificationToken, emailEnabled, sendVerificationEmail } from "@/lib/email";
+import { rateLimitShared } from "@/lib/rate-limit";
+import {
+  createVerificationToken,
+  emailEnabled,
+  sendVerificationEmail,
+  sendDuplicateRegistrationEmail,
+} from "@/lib/email";
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (!rateLimit(`register:${ip}`, 5, 10 * 60_000)) {
+  if (!(await rateLimitShared(`register:${ip}`, 5, 10 * 60_000))) {
     return NextResponse.json(
       { error: "Too many attempts — try again in a few minutes" },
       { status: 429 }
@@ -22,9 +27,24 @@ export async function POST(req: Request) {
   const { name, password } = parsed.data;
   const email = parsed.data.email.toLowerCase();
 
+  // An existing address gets the same answer a new one does, so the signup
+  // form can't be used to discover who has an account. The owner is told by
+  // email instead — they're the only person entitled to know.
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+    if (emailEnabled()) {
+      try {
+        await sendDuplicateRegistrationEmail(email);
+      } catch (err) {
+        console.error("duplicate-registration notice failed:", err);
+      }
+      return NextResponse.json({ ok: true, verify: true }, { status: 201 });
+    }
+    // No mail provider (local dev): nothing to notify with, so be explicit.
+    return NextResponse.json(
+      { error: "An account with this email already exists" },
+      { status: 409 }
+    );
   }
 
   const created = await prisma.user.create({
