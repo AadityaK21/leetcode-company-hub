@@ -1,5 +1,7 @@
 # CompanyHub — Company-wise LeetCode Prep
 
+> Live at **[companyhub.fun](https://companyhub.fun)**. Case study: **[aadityakumawat.me/work/company-hub](https://aadityakumawat.me/work/company-hub/)**
+
 A production-grade interview prep platform in the spirit of **Striver's A2Z Sheet** and **NeetCode**, built around one idea: *practice what your target company actually asks.* Data comes from the open-source [snehasishroy/leetcode-companywise-interview-questions](https://github.com/snehasishroy/leetcode-companywise-interview-questions) repository (per-company CSVs with frequency + recency buckets).
 
 **Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS + shadcn/ui-style components · Framer Motion · TanStack Query · Zustand · React Hook Form + Zod · Prisma + PostgreSQL · Auth.js v5 (Google, GitHub, email/password) · Vercel-ready.
